@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "noisy_quantum_measurements"
+version = "0.1.0"
+description = ""
+authors = ["Chris Corlett <xl22293@bristol.ac.uk>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+sympy = "^1.12"
+jupyter = "^1.0.0"
+ipython = "^8.14.0"
+numpy = "^1.24.3"
+qutip = "^4.7.1"
+matplotlib = "^3.7.1"
+mayavi = "^4.8.1"
+PyQt5 = "^5.15.9"
+tqdm = "^4.65.0"
+wolframclient = "^1.1.7"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
