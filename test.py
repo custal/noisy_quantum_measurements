@@ -18,7 +18,7 @@ from sympy.physics.quantum import TensorProduct, Dagger
 from itertools import combinations
 import qutip as qp
 from multiprocessing.pool import Pool
-from wolframclient.evaluation import WolframLanguageSession
+from wolframclient.evaluation import WolframLanguageSession, WolframCloudSession
 from wolframclient.language import wlexpr
 import datetime
 import time
@@ -155,6 +155,12 @@ def calc_probabilities(tensor, a, b):
     return (Dagger(psi) * tensor * psi)[0]
 
 if __name__ == "__main__":
+    with WolframCloudSession('C:\\Program Files\\Wolfram Research\\Wolfram Engine\\13.2\\WolframKernel.exe') as session:
+        command = '2+2'
+        x = session.evaluate(wlexpr(command))
+
+    print(x)
+
     phi0 = Qubit(1, 0)
     phi1 = Qubit(1 / sqrt(3), sqrt(2 / 3))
     phi2 = Qubit(1 / sqrt(3), sp.E ** (sp.I * 2 * sp.pi / 3) * sqrt(2 / 3))
