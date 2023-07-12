@@ -20,7 +20,7 @@ class ProtocolResult:
 @dataclass
 class EigenValueProtocolResult(ProtocolResult):
     eigen_values: tuple
-    x_start_y_start: tuple
+    x_star_y_star: tuple
 
 @dataclass
 class POVMClone:
@@ -87,12 +87,12 @@ def matrix_to_braket(matrix, qubit_num=None):
 
 def eigen_value_measure_mathematica(protocol, povm_calculator, session):
     permutations = povm_calculator.permutations
-    dim = permutations[0].rows
+    dim = list(permutations.values())[0].povm.rows
     povm_sum = sp.zeros(dim)
     for permutation in protocol:
         povm_sum += permutations[permutation].povm
 
-    command = 'N[Eigenvalues[' + mathematica_code(povm_sum) + ']]'
+    command = 'Chop[N[Eigenvalues[' + mathematica_code(povm_sum) + ']]]'
     eigen_vals = session.evaluate(wlexpr(command))
 
     max_eig = max(eigen_vals)

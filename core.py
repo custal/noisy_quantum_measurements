@@ -25,12 +25,13 @@ class POVMProtocolCalculator:
         self.id_ = None
         self.date = None
 
-        self.povms = povms
         self.number_of_measures = len(povms)
         self.number_of_clones = number_of_clones
         self.number_of_permutations = self.number_of_measures**self.number_of_clones
-        self.calculate_permutations()
         self.number_of_protocols = 2**self.number_of_permutations
+        self.number_of_lowest_measures = None
+        self.povms = povms
+        self.calculate_permutations()
         self.calculate_all_protocols()
         self.lowest_measures = None
 
@@ -83,7 +84,7 @@ class POVMProtocolCalculator:
     def calculate_measures_sympy(self, measure_func=basic_measure):
         print(f"Calculating {self.number_of_protocols} measures...")
 
-        for (key, item) in tqdm(self.protocols.items()):
+        for key, item in tqdm(self.protocols.items()):
             measure = measure_func(key, self)
             self.protocols[key] = measure
 
@@ -94,7 +95,7 @@ class POVMProtocolCalculator:
         print(f"Calculating {self.number_of_protocols} measures...")
 
         with WolframLanguageSession(wolfram_kernel_path) as session:
-            for i, (key, item) in tqdm(self.protocols.items()):
+            for key, item in tqdm(self.protocols.items()):
                 measure = measure_func(key, self, session)
                 self.protocols[key] = measure
 
@@ -112,6 +113,7 @@ class POVMProtocolCalculator:
                 lowest_val = item.measure_value
 
         self.lowest_measures = lowest_measures
+        self.number_of_lowest_measures = len(lowest_measures)
 
     def save(self, file_name: str = None, dir: str = dir_data, mode: str = "a"):
         """ Save the data to a file. We don't pickle the entire object as it isn't
@@ -122,7 +124,7 @@ class POVMProtocolCalculator:
         self.date = datetime.now()
 
         if file_name is None:
-            file_name = f"{self.date.strftime(self.time_format)}-{self.id_}"
+            file_name = f"{self.date.strftime(self.time_format)}-{self.id_}.txt"
 
         save_dict = deepcopy(self.__dict__)
 
