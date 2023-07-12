@@ -6,6 +6,8 @@ import sympy as sp
 from pathlib import Path
 from wolframclient.language import wlexpr
 import inspect
+import pickle
+import base64
 
 wolfram_kernel_path = Path('C:\\Program Files\\Wolfram Research\\Mathematica\\13.2\\WolframKernel.exe')
 dir_data = Path(__file__).parents[0]/"data"
@@ -27,6 +29,12 @@ class POVMClone:
     """ Class for keeping track of povms once cloned and associated probabilities """
     povm: Matrix
     probability: Symbol
+
+def encode_object(obj):
+    return base64.b64encode(pickle.dumps(obj)).decode("ascii")
+
+def decode_object(obj):
+    return pickle.loads(base64.b64decode(obj))
 
 def dataclass_to_dict(dclass):
     dclass = dclass.__dict__
