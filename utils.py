@@ -93,7 +93,34 @@ def matrix_to_braket(matrix, qubit_num=None):
 
 #######################################################################################################################
 
+def optimal_eig_new_measure(max_eig, min_eig):
+    """ New measure of goodness paul sent to me in an email """
+    if max_eig <= 1 - (np.sqrt(2)+1) * min_eig:
+        (x, y) = (max_eig, (np.sqrt(2) - 1) * (1 - max_eig))
+    elif 1 - (np.sqrt(2)+1) * min_eig <= max_eig and max_eig <= 1 - (np.sqrt(2)-1) * min_eig:
+        (x, y) = (max_eig, min_eig)
+    elif 1 - (np.sqrt(2)-1) * min_eig <= max_eig:
+        (x, y) = (1 - (np.sqrt(2) - 1) * min_eig, min_eig)
+    else:
+        raise ValueError(f"Protocol failed.")
+
+    return ((1 - x)**2 + y**2) / (1 - x + y), x, y, inspect.currentframe().f_code.co_name
+
+def optimal_eig_old_measure(max_eig, min_eig):
+    """ measure of goodness from the paper """
+    if max_eig <= 1 - 2 * min_eig:
+        (x, y) = (max_eig, (1 - max_eig) / 2)
+    elif 1 - 2 * min_eig <= max_eig and max_eig <= 1 - min_eig / 2:
+        (x, y) = (max_eig, min_eig)
+    elif 1 - min_eig / 2 <= max_eig:
+        (x, y) = ((1 - min_eig) / 2, min_eig)
+    else:
+        raise ValueError(f"Protocol failed.")
+
+    return np.sqrt(1 / 3 * ((1 - x - y) ** 2 + (1 - x) * y)), x, y, inspect.currentframe().f_code.co_name
+
 def eigen_value_measure_mathematica(protocol, povm_calculator, session):
+    """ Calculate the eigen values of a protocol and use those to find the measure of goodness """
     permutations = povm_calculator.permutations
     dim = list(permutations.values())[0].povm.rows
     povm_sum = sp.zeros(dim)
@@ -106,21 +133,14 @@ def eigen_value_measure_mathematica(protocol, povm_calculator, session):
     max_eig = max(eigen_vals)
     min_eig = min(eigen_vals)
 
-    if max_eig <= 1 - 2 * min_eig:
-        (x, y) = (max_eig, (1 - max_eig) / 2)
-    elif 1 - 2 * min_eig <= max_eig and max_eig <= 1 - min_eig / 2:
-        (x, y) = (max_eig, min_eig)
-    elif 1 - min_eig / 2 <= max_eig:
-        (x, y) = ((1 - min_eig) / 2, min_eig)
-    else:
-        raise ValueError(f"Protocol {protocol} failed.")
+    measure, x, y, func_name = optimal_eig_old_measure(max_eig, min_eig)
 
-    measure = np.sqrt(1 / 3 * ((1 - x - y) ** 2 + (1 - x) * y))
-
-    return EigenValueProtocolResult(protocol, inspect.currentframe().f_code.co_name, measure, eigen_vals, (x, y))
+    return EigenValueProtocolResult(protocol, inspect.currentframe().f_code.co_name + "_" + func_name, measure,
+                                    eigen_vals, (x, y))
 
 
 def integral_rms_measure_mathematica(protocol, povm_calculator, session):
+    """ Same as above but takes much longer and is not optimal as you have to evaluate the integral """
     a = povm_calculator.a
     b = povm_calculator.b
     permutations = povm_calculator.permutations
@@ -142,6 +162,8 @@ def integral_rms_measure_mathematica(protocol, povm_calculator, session):
     return ProtocolResult(protocol, inspect.currentframe().f_code.co_name, measure)
 
 def simplified_root_mean_square_measure(protocol, povm_calculator):
+    """ Using the probabilities to calculate the goodness measure, used to check results are consistent between
+    probability calculation of goodness measures above """
     a = povm_calculator.a
     b = povm_calculator.b
     permutations = povm_calculator.permutations
@@ -165,7 +187,8 @@ def simplified_root_mean_square_measure(protocol, povm_calculator):
     return ProtocolResult(protocol, inspect.currentframe().f_code.co_name, measure.evalf(chop=True))
 
 def basic_measure(protocol, povm_calculator):
-    """ Will need to set a and b sympy symbols to real if you want this to solve in any reasonable time scale """
+    """ Very simple measure initially used due to lack of understanding of the actual measure.
+    Will need to set a and b sympy symbols to real if you want this to solve in any reasonable time scale """
     a = povm_calculator.a
     b = povm_calculator.b
     permutations = povm_calculator.permutations
@@ -179,3 +202,9 @@ def basic_measure(protocol, povm_calculator):
     measure = sqrt(sp.Integral(prob ** 2, (a, 0, 1)))
 
     return ProtocolResult(protocol, inspect.currentframe().f_code.co_name, measure.evalf(chop=True))
+
+
+#######################################################################################################################
+
+def cyclic_symmetry(protocol):
+    return type(protocol)([tuple([perm[i-1] for i in range(len(perm))]) for perm in protocol])

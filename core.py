@@ -114,6 +114,22 @@ class POVMProtocolCalculator:
         self.lowest_measures = lowest_measures
         self.number_of_lowest_measures = len(lowest_measures)
 
+    def apply_symmetry(self, symmetry):
+        protocols = [prot.protocol for prot in self.lowest_measures]
+        symmetry_groups = []
+
+        for prot in protocols:
+            found = False
+            for group in symmetry_groups:
+                if symmetry(prot) in group:
+                    group.append(prot)
+                    found = True
+                    break
+            if not found:
+                symmetry_groups.append([prot])
+
+        return symmetry_groups
+
     def save(self, file_name: str = None, dir: str = dir_data, mode: str = "a"):
         """ Save the data to a file. We don't pickle the entire object as it isn't
             conducive to long term storage ie. if we ever want to update this class. JSON is better for this.
