@@ -93,6 +93,15 @@ def matrix_to_braket(matrix, qubit_num=None):
 
 #######################################################################################################################
 
+def new_measure(x, y):
+    return ((1 - x) ** 2 + y ** 2) / (1 - x + y)
+
+def old_measure(x, y):
+    if isinstance(x, sp.Number) or isinstance(y, sp.Number):
+        return sp.sqrt(1 / 3 * ((1 - x - y) ** 2 + (1 - x) * y))
+    else:
+        return np.sqrt(1 / 3 * ((1 - x - y) ** 2 + (1 - x) * y))
+
 def optimal_eig_new_measure(max_eig, min_eig):
     """ New measure of goodness paul sent to me in an email """
     if max_eig <= 1 - (np.sqrt(2)+1) * min_eig:
@@ -104,7 +113,7 @@ def optimal_eig_new_measure(max_eig, min_eig):
     else:
         raise ValueError(f"Protocol failed.")
 
-    return ((1 - x)**2 + y**2) / (1 - x + y), x, y, inspect.currentframe().f_code.co_name
+    return new_measure(x, y), x, y, inspect.currentframe().f_code.co_name
 
 def optimal_eig_old_measure(max_eig, min_eig):
     """ measure of goodness from the paper """
@@ -113,11 +122,11 @@ def optimal_eig_old_measure(max_eig, min_eig):
     elif 1 - 2 * min_eig <= max_eig and max_eig <= 1 - min_eig / 2:
         (x, y) = (max_eig, min_eig)
     elif 1 - min_eig / 2 <= max_eig:
-        (x, y) = ((1 - min_eig) / 2, min_eig)
+        (x, y) = (1 - min_eig / 2, min_eig)
     else:
         raise ValueError(f"Protocol failed.")
 
-    return np.sqrt(1 / 3 * ((1 - x - y) ** 2 + (1 - x) * y)), x, y, inspect.currentframe().f_code.co_name
+    return old_measure(x, y), x, y, inspect.currentframe().f_code.co_name
 
 def eigen_value_measure_mathematica(protocol, povm_calculator, session):
     """ Calculate the eigen values of a protocol and use those to find the measure of goodness """
@@ -161,14 +170,14 @@ def integral_rms_measure_mathematica(protocol, povm_calculator, session):
 
     return ProtocolResult(protocol, inspect.currentframe().f_code.co_name, measure)
 
-def simplified_root_mean_square_measure(protocol, povm_calculator):
+def simplified_root_mean_square_measure_old_with_z(protocol, povm_calculator):
     """ Using the probabilities to calculate the goodness measure, used to check results are consistent between
     probability calculation of goodness measures above """
     a = povm_calculator.a
     b = povm_calculator.b
     permutations = povm_calculator.permutations
 
-    probability = 0
+    probability = sp.Float(0)
     for permutation in protocol:
         probability += permutations[permutation].probability
 
@@ -181,7 +190,45 @@ def simplified_root_mean_square_measure(protocol, povm_calculator):
     p_iminus = probability.subs({a: 1 / sqrt(2), b: -sp.I / sqrt(2)}).evalf()
     z = 0.5 * ((p_plus - p_minus) - sp.I * (p_iplus - p_iminus)).evalf()
 
-    measure = sqrt(1 / 3 * ((1 - x - y) ** 2 + (1 - x) * y + z * sp.conjugate(z)))
+    measure = old_measure(x, y) + z*sp.conjugate(z)
+    measure = sp.simplify(measure)
+
+    return ProtocolResult(protocol, inspect.currentframe().f_code.co_name, measure.evalf(chop=True))
+
+def simplified_root_mean_square_measure_old_without_z(protocol, povm_calculator):
+    """ Using the probabilities to calculate the goodness measure, used to check results are consistent between
+    probability calculation of goodness measures above """
+    a = povm_calculator.a
+    b = povm_calculator.b
+    permutations = povm_calculator.permutations
+
+    probability = sp.Float(0)
+    for permutation in protocol:
+        probability += permutations[permutation].probability
+
+    x = probability.subs({a: 1, b: 0}).evalf()
+    y = probability.subs({a: 0, b: 1}).evalf()
+
+    measure = old_measure(x, y)
+    measure = sp.simplify(measure)
+
+    return ProtocolResult(protocol, inspect.currentframe().f_code.co_name, measure.evalf(chop=True))
+
+def simplified_root_mean_square_measure_new(protocol, povm_calculator):
+    """ Using the probabilities to calculate the goodness measure, used to check results are consistent between
+    probability calculation of goodness measures above """
+    a = povm_calculator.a
+    b = povm_calculator.b
+    permutations = povm_calculator.permutations
+
+    probability = sp.Float(0)
+    for permutation in protocol:
+        probability += permutations[permutation].probability
+
+    x = probability.subs({a: 1, b: 0}).evalf()
+    y = probability.subs({a: 0, b: 1}).evalf()
+
+    measure = new_measure(x, y)
     measure = sp.simplify(measure)
 
     return ProtocolResult(protocol, inspect.currentframe().f_code.co_name, measure.evalf(chop=True))
