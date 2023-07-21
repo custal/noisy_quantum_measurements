@@ -2,6 +2,7 @@ import numpy as np
 from dataclasses import dataclass
 from sympy.matrices import Matrix
 from sympy import Symbol, mathematica_code, sqrt
+from sympy.parsing.mathematica import MathematicaParser
 import sympy as sp
 from pathlib import Path
 from wolframclient.language import wlexpr
@@ -94,11 +95,11 @@ def matrix_to_braket(matrix, qubit_num=None):
 #######################################################################################################################
 
 def new_measure(x, y):
-    return ((1 - x) ** 2 + y ** 2) / (1 - x + y)
+    return sp.simplify(sp.Rational((1 - x) ** 2 + y ** 2, (1 - x + y)))
 
 def old_measure(x, y):
-    if isinstance(x, sp.Number) or isinstance(y, sp.Number):
-        return sp.sqrt(1 / 3 * ((1 - x - y) ** 2 + (1 - x) * y))
+    if isinstance(x, sp.Basic) or isinstance(y, sp.Basic):
+        return sp.simplify(sp.sqrt(sp.Rational(1, 3) * ((1 - x - y) ** 2 + (1 - x) * y)))
     else:
         return np.sqrt(1 / 3 * ((1 - x - y) ** 2 + (1 - x) * y))
 
@@ -113,6 +114,7 @@ def optimal_eig_new_measure(max_eig, min_eig):
     else:
         raise ValueError(f"Protocol failed.")
 
+    x, y = sp.simplify(x), sp.simplify(y)
     return new_measure(x, y), x, y, inspect.currentframe().f_code.co_name
 
 def optimal_eig_old_measure(max_eig, min_eig):
@@ -126,6 +128,7 @@ def optimal_eig_old_measure(max_eig, min_eig):
     else:
         raise ValueError(f"Protocol failed.")
 
+    x, y = sp.simplify(x), sp.simplify(y)
     return old_measure(x, y), x, y, inspect.currentframe().f_code.co_name
 
 def eigen_value_measure_mathematica(protocol, povm_calculator, session):
@@ -136,11 +139,21 @@ def eigen_value_measure_mathematica(protocol, povm_calculator, session):
     for permutation in protocol:
         povm_sum += permutations[permutation].povm
 
-    command = 'Chop[N[Eigenvalues[' + mathematica_code(povm_sum) + ']]]'
+    command = 'Simplify[Eigenvalues[' + mathematica_code(povm_sum) + ']]'
     eigen_vals = session.evaluate(wlexpr(command))
 
-    max_eig = max(eigen_vals)
-    min_eig = min(eigen_vals)
+    parser = MathematicaParser()
+    # Relate Mathematica 'Rational' function to Sympy Rational function
+    parser._node_conversions["Rational"] = sp.Rational
+
+    eigen_vals = tuple(map(parser.parse, map(str, eigen_vals)))
+
+    try:
+        max_eig = max(eigen_vals)
+        min_eig = min(eigen_vals)
+    except:
+        eigen_vals = session.evaluate(wlexpr(command))
+        tuple(map(parser.parse, map(str, eigen_vals)))
 
     measure, x, y, func_name = optimal_eig_old_measure(max_eig, min_eig)
 
