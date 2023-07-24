@@ -92,7 +92,6 @@ def matrix_to_braket(matrix, qubit_num=None):
 
     return expression
 
-
 def plot_protocol(protocol, size=(4, 4)):
     grid = np.ones(size)
     for p in protocol:
@@ -106,6 +105,7 @@ class MonkeyMathematicaParser(MathematicaParser):
     def __init__(self, *args, session_ = None, **kwargs):
         super().__init__(*args, **kwargs)
         self._node_conversions["Rational"] = sp.Rational
+        self._node_conversions["Complex"] = lambda x, y: x + sp.I * y
         self.session_ = session_
 
     def _from_fullformlist_to_sympy(self, full_form_list):
@@ -147,7 +147,10 @@ class MonkeyMathematicaParser(MathematicaParser):
 #######################################################################################################################
 
 def new_measure(x, y):
-    return sp.simplify(sp.Rational((1 - x) ** 2 + y ** 2, (1 - x + y)))
+    if isinstance(x, sp.Basic) or isinstance(y, sp.Basic):
+        return sp.simplify(((1 - x) ** 2 + y ** 2) / (1 - x + y))
+    else:
+        return ((1 - x) ** 2 + y ** 2) / (1 - x + y)
 
 def old_measure(x, y):
     if isinstance(x, sp.Basic) or isinstance(y, sp.Basic):
@@ -157,12 +160,12 @@ def old_measure(x, y):
 
 def optimal_eig_new_measure(max_eig, min_eig):
     """ New measure of goodness paul sent to me in an email """
-    if max_eig <= 1 - (np.sqrt(2)+1) * min_eig:
-        (x, y) = (max_eig, (np.sqrt(2) - 1) * (1 - max_eig))
-    elif 1 - (np.sqrt(2)+1) * min_eig <= max_eig and max_eig <= 1 - (np.sqrt(2)-1) * min_eig:
+    if max_eig <= 1 - (sp.sqrt(2)+1) * min_eig:
+        (x, y) = (max_eig, (sp.sqrt(2) - 1) * (1 - max_eig))
+    elif 1 - (sp.sqrt(2)+1) * min_eig <= max_eig and max_eig <= 1 - (sp.sqrt(2)-1) * min_eig:
         (x, y) = (max_eig, min_eig)
-    elif 1 - (np.sqrt(2)-1) * min_eig <= max_eig:
-        (x, y) = (1 - (np.sqrt(2) - 1) * min_eig, min_eig)
+    elif 1 - (sp.sqrt(2)-1) * min_eig <= max_eig:
+        (x, y) = (1 - (sp.sqrt(2) - 1) * min_eig, min_eig)
     else:
         raise ValueError(f"Protocol failed.")
 
@@ -196,12 +199,47 @@ def eigen_value_measure_mathematica(protocol, povm_calculator, session):
 
     parser = MonkeyMathematicaParser(session_=session)
 
-    eigen_vals = list(map(parser.parse, map(str, eigen_vals)))
+    # Assume any imaginary part should be zero. Sometimes an artifact is left.
+    try:
+        eigen_vals = list(map(sp.re, map(parser.parse, map(str, eigen_vals))))
+    except:
+        # If all other attempts to evaluate the eigenvalues as rational numbers fail then evaluate them numerically
+        eigen_vals = session.evaluate(wlexpr("Chop[N[" + command + "]]"))
+        eigen_vals = list(map(parser.parse, map(str, eigen_vals)))
 
     max_eig = max(eigen_vals)
     min_eig = min(eigen_vals)
 
     measure, x, y, func_name = optimal_eig_old_measure(max_eig, min_eig)
+
+    return EigenValueProtocolResult(protocol, inspect.currentframe().f_code.co_name + "_" + func_name, measure,
+                                    eigen_vals, (x, y))
+
+def eigen_value_measure_new_mathematica(protocol, povm_calculator, session):
+    """ Calculate the eigen values of a protocol and use those to find the measure of goodness """
+    permutations = povm_calculator.permutations
+    dim = list(permutations.values())[0].povm.rows
+    povm_sum = sp.zeros(dim)
+    for permutation in protocol:
+        povm_sum += permutations[permutation].povm
+
+    command = 'Simplify[Eigenvalues[' + mathematica_code(povm_sum) + ']]'
+    eigen_vals = session.evaluate(wlexpr(command))
+
+    parser = MonkeyMathematicaParser(session_=session)
+
+    # Assume any imaginary part should be zero. Sometimes an artifact is left.
+    try:
+        eigen_vals = list(map(sp.re, map(parser.parse, map(str, eigen_vals))))
+    except:
+        # If all other attempts to evaluate the eigenvalues as rational numbers fail then evaluate them numerically
+        eigen_vals = session.evaluate(wlexpr("Chop[N[" + command + "]]"))
+        eigen_vals = list(map(parser.parse, map(str, eigen_vals)))
+
+    max_eig = max(eigen_vals)
+    min_eig = min(eigen_vals)
+
+    measure, x, y, func_name = optimal_eig_new_measure(max_eig, min_eig)
 
     return EigenValueProtocolResult(protocol, inspect.currentframe().f_code.co_name + "_" + func_name, measure,
                                     eigen_vals, (x, y))
