@@ -9,6 +9,7 @@ from wolframclient.language import wlexpr
 import inspect
 import pickle
 import base64
+import matplotlib.pyplot as plt
 
 wolfram_kernel_path = Path('C:\\Program Files\\Wolfram Research\\Mathematica\\13.2\\WolframKernel.exe')
 dir_data = Path(__file__).parents[0]/"data"
@@ -41,13 +42,13 @@ def dataclass_to_dict(dclass):
     dclass = dclass.__dict__
     for key, item in dclass.items():
         if isinstance(item, Matrix):
-            dclass[key] = matrix_to__list(item)
+            dclass[key] = matrix_to_list(item)
         elif isinstance(item, Symbol):
             dclass[key] = str(item)
 
     return dclass
 
-def matrix_to__list(mat: Matrix):
+def matrix_to_list(mat: Matrix):
     return mat.__array__().tolist()
 
 def number_to_base(n, b, pack):
@@ -91,6 +92,57 @@ def matrix_to_braket(matrix, qubit_num=None):
 
     return expression
 
+
+def plot_protocol(protocol, size=(4, 4)):
+    grid = np.ones(size)
+    for p in protocol:
+        grid[p[0]][p[1]] = 0
+
+    plt.imshow(grid, cmap='gray')
+
+class MonkeyMathematicaParser(MathematicaParser):
+    """ Make some alterations to the mathematica parser to account for outputs to the 'EigenValue' command not
+    accounted for by default """
+    def __init__(self, *args, session_ = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._node_conversions["Rational"] = sp.Rational
+        self.session_ = session_
+
+    def _from_fullformlist_to_sympy(self, full_form_list):
+        """ We overwrite this method as the parser cannot parse Root very well. Root occurs when the result is an
+        irrational algebraic number of some polynomial. This function overrides the normal functionality and will
+        calculate the numerical value of the root in this case. """
+
+        # Without list_to_string, lists of strings are converted to strings where each element is also a string which we don't want
+        # # We want the whole thing to be one string
+        list_to_string = lambda l: str(l).replace("'", "")
+
+        def recurse_mathematica(expr):
+            """ Like recurse but keeps the expression in mathematica format. """
+            if isinstance(expr, list):
+                if isinstance(expr[0], list):
+                    head = recurse_mathematica(expr[0])
+                else:
+                    head = expr[0]
+                return head + list_to_string([recurse_mathematica(arg) for arg in expr[1:]])
+            else:
+                return expr
+
+        def recurse(expr):
+            if isinstance(expr, list):
+                if expr[0] == "Root":
+                    root_args = list_to_string([recurse_mathematica(arg) for arg in expr[1:]])
+                    command = f"N[Root{root_args}]"
+                    return sp.sympify(self.session_.evaluate(wlexpr(command)))
+                elif isinstance(expr[0], list):
+                    head = recurse(expr[0])
+                else:
+                    head = self._node_conversions.get(expr[0], sp.Function(expr[0]))
+                return head(*[recurse(arg) for arg in expr[1:]])
+            else:
+                return self._atom_conversions.get(expr, sp.sympify(expr))
+
+        return recurse(full_form_list)
 
 #######################################################################################################################
 
@@ -142,18 +194,12 @@ def eigen_value_measure_mathematica(protocol, povm_calculator, session):
     command = 'Simplify[Eigenvalues[' + mathematica_code(povm_sum) + ']]'
     eigen_vals = session.evaluate(wlexpr(command))
 
-    parser = MathematicaParser()
-    # Relate Mathematica 'Rational' function to Sympy Rational function
-    parser._node_conversions["Rational"] = sp.Rational
+    parser = MonkeyMathematicaParser(session_=session)
 
-    eigen_vals = tuple(map(parser.parse, map(str, eigen_vals)))
+    eigen_vals = list(map(parser.parse, map(str, eigen_vals)))
 
-    try:
-        max_eig = max(eigen_vals)
-        min_eig = min(eigen_vals)
-    except:
-        eigen_vals = session.evaluate(wlexpr(command))
-        tuple(map(parser.parse, map(str, eigen_vals)))
+    max_eig = max(eigen_vals)
+    min_eig = min(eigen_vals)
 
     measure, x, y, func_name = optimal_eig_old_measure(max_eig, min_eig)
 
