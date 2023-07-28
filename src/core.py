@@ -10,7 +10,7 @@ from datetime import datetime
 from uuid import uuid1
 from copy import deepcopy
 
-from utils import number_to_base, POVMClone, wolfram_kernel_path, basic_measure, eigen_value_measure_mathematica,\
+from src.utils import number_to_base, POVMClone, wolfram_kernel_path, basic_measure, eigen_value_measure_mathematica,\
     dir_data, decode_object, encode_object
 
 

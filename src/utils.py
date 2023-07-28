@@ -13,7 +13,7 @@ import base64
 import matplotlib.pyplot as plt
 
 wolfram_kernel_path = Path('C:\\Program Files\\Wolfram Research\\Mathematica\\13.2\\WolframKernel.exe')
-dir_data = Path(__file__).parents[0]/"data"
+dir_data = Path(__file__).parent/"data"
 
 @dataclass
 class ProtocolResult:
