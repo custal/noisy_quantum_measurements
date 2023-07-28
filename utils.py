@@ -6,6 +6,7 @@ from sympy.parsing.mathematica import MathematicaParser
 import sympy as sp
 from pathlib import Path
 from wolframclient.language import wlexpr
+from wolframclient.evaluation import WolframLanguageSession
 import inspect
 import pickle
 import base64
@@ -143,6 +144,21 @@ class MonkeyMathematicaParser(MathematicaParser):
                 return self._atom_conversions.get(expr, sp.sympify(expr))
 
         return recurse(full_form_list)
+
+
+def protocol_eigenvector(protocol, povm_calculator):
+    """ Calculate the eigen values of a protocol and use those to find the measure of goodness """
+    permutations = povm_calculator.permutations
+    dim = list(permutations.values())[0].povm.rows
+    povm_sum = sp.zeros(dim)
+    for permutation in protocol:
+        povm_sum += permutations[permutation].povm
+
+    with WolframLanguageSession(wolfram_kernel_path) as session:
+        command = 'Chop[N[Simplify[Eigensystem[' + mathematica_code(povm_sum) + ']]]]'
+        eigen_vects = session.evaluate(wlexpr(command))
+
+    return eigen_vects
 
 #######################################################################################################################
 
