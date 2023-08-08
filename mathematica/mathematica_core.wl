@@ -1,5 +1,33 @@
 (* ::Package:: *)
 
+(*Trine*)
+
+phi1Trine={{1},{0}};
+phi2Trine={{1/2},{Sqrt[3]/2}};
+phi3Trine={{1/2},{-Sqrt[3]/2}};
+
+(*Defining the matrices M0,M1,and M2*)
+povmsTrine={2/3*Matrixify[phi1Trine],
+2/3*Matrixify[phi2Trine],
+2/3*Matrixify[phi3Trine]};
+
+outcomesTrine = PovmPermutations[povmsTrine];
+
+(*Tetra*)
+
+phi1Tetra={1,0};
+phi2Tetra={Rationalize[1/Sqrt[3]],Rationalize[Sqrt[2/3]]};
+phi3Tetra={Rationalize[1/Sqrt[3]],E^(I*2*Pi/3)*Rationalize[Sqrt[2/3]]};
+phi4Tetra={Rationalize[1/Sqrt[3]],E^(-I*2*Pi/3)*Rationalize[Sqrt[2/3]]};
+
+povmsTetra = { 1/2*Matrixify[phi1Tetra],
+		1/2*Matrixify[phi2Tetra],
+		1/2*Matrixify[phi3Tetra],
+		1/2*Matrixify[phi4Tetra]};
+
+outcomesTetra = PovmPermutations[povmsTetra];
+
+
 MeasureAbsolute[x_, y_] := ((1 - x)^2 + y^2)/(1 - x + y)
 
 OptimalBasisValues[eigVals_] := 
@@ -100,10 +128,10 @@ PartialTrace[\[Rho]_, system_, dimensions_] := Module[{operatorList, basis, oper
 	sum]
 
 EntropyOfEntanglement[state_, trace_:{1}, dimensions_:{2,2}] := Module[{\[Rho], system, \[Lambda]},
-	\[Rho] = Chop[Matrixify[state]];
+	\[Rho] = Chop[Matrixify[Normalize[state]]];
 	Do[\[Rho]=Chop[PartialTrace[\[Rho], system, dimensions]], {system, trace}];
-	\[Lambda] = DeleteCases[Eigenvalues[\[Rho]], 0]; (*Only sum non-zero eigen values*)
-	-Total[\[Lambda]*Log[\[Lambda]]]]
+	\[Lambda] = DeleteCases[Chop[Eigenvalues[\[Rho]]], 0]; (*Only sum non-zero eigen values*)
+	-Chop[Total[\[Lambda]*Log[\[Lambda]]]]]
 
 PlotProtocol[protocol_, dimensions_] := Module[{grid, outcome}, 
 	grid = ConstantArray[0, dimensions];
