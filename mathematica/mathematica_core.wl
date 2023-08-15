@@ -68,7 +68,7 @@ GenerateProtocols[outcomes_] :=
   
 SumPovms[protocol_, povmOutcomes_] := Module[{sum},
 (*Use the first povm outcome assuming all povms have the same dimension*)
-	  sum = ConstantArray[0, Dimensions[Values[outcomes][[1]]]];
+	  sum = ConstantArray[0, Dimensions[Values[povmOutcomes][[1]]]];
 	  
 	  Do[sum += povmOutcomes[outcome]
 	   , {outcome, protocol}];
@@ -142,20 +142,45 @@ PlotProtocol[protocol_, dimensions_] := Module[{grid, outcome},
 		MatrixPlot[grid, ColorFunction->"Monochrome"]]
 	
 ProbabilityGrid[state_, outcomes_] := Module[{grid, protocol},
+
 	grid = ConstantArray[0, Dimensions[Values[outcomes][[1]]]];
 
 	Do[
 		grid[[protocol[[1]],protocol[[2]]]] = Chop[BraKetExpectation[Normalize[state], SumPovms[{protocol}, outcomes]]], {protocol, Keys[outcomes]}];
-		grid]
+	grid
+	]
 		
-PlotProtocolVerbose[protocol_, outcomes_] := Module[{mat, protocolGrid, probabilityGrid},
+ProbabilityRatioGrid[state1_, state2_, outcomes_] := Module[{grid, protocol, measureOperator, probability1, probability2},
+	grid = ConstantArray[0, Dimensions[Values[outcomes][[1]]]];
+
+	Do[
+		measureOperator = SumPovms[{protocol}, outcomes];
+		probability1 = Chop[BraKetExpectation[Normalize[state1], measureOperator]];
+		probability2 = Chop[BraKetExpectation[Normalize[state2], measureOperator]];
+		grid[[protocol[[1]],protocol[[2]]]] = probability1/probability2, {protocol, Keys[outcomes]}];
+
+	grid
+	]
+		
+PlotProtocolVerbose[protocol_, outcomes_, ratio_:False] := Module[{mat, protocolGrid, probabilityGrid},
+(*Probability grid is calcualted assuming we are in the boring case where the |Subscript[\[Psi], 0]> = |Subscript[\[Lambda], max]> and |Subscript[\[Psi], 1]> = |Subscript[\[Lambda], min]>*)
 
 	protocolGrid = ConstantArray[0, Dimensions[Values[outcomes][[1]]]];
-	probabilityGrid = ProbabilityGrid[protocol["eigenVectors"][[1]], outcomes];
+	If[
+		ratio, 
+		probabilityGrid = ProbabilityRatioGrid[protocol["eigenVectors"][[1]], protocol["eigenVectors"][[4]], outcomes],
+		Module[{},probabilityGrid = ProbabilityGrid[protocol["eigenVectors"][[1]], outcomes];
+		probabilityGrid = probabilityGrid/Max[probabilityGrid]]
+	];
 	
 	Do[
 		protocolGrid[[measure[[1]], measure[[2]]]]=1,
 		{measure, protocol["protocol"]}];
 
-	MatrixPlot[probabilityGrid/Max[probabilityGrid], Mesh -> All,ColorFunction->"LightTemperatureMap",ColorFunctionScaling->False,
+	MatrixPlot[probabilityGrid, Mesh -> All,ColorFunction->"LightTemperatureMap",ColorFunctionScaling->False,
 	      Epilog -> MapIndexed[Text[Style[Round[#, .01], Large], {#2[[2]], Length[protocolGrid]+1-#2[[1]]} - .5] &, protocolGrid, {2}]]]
+	      
+KeyToList[protocols_, keyFunc_]:= Module[{list},
+	list = {};
+	Do[list=Append[list,keyFunc[out]],{out,protocols}];
+	list]
