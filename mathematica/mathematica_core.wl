@@ -184,3 +184,21 @@ KeyToList[protocols_, keyFunc_]:= Module[{list},
 	list = {};
 	Do[list=Append[list,keyFunc[out]],{out,protocols}];
 	list]
+	
+SplitAndSplice[state_]:=KroneckerProduct[PartialTrace[state, 2, {2,2}], PartialTrace[state, 1, {2,2}]]/Tr[state]
+
+NearTo[A_, B_, round_:-10]:=(Round[#1, 10^(round)] & /@ A)== (Round[#1, 10^(round)] & /@ B)
+
+CheckSeparability[protocol_] := Module[{Q, Qsplice, vect, productStateTruths, \[Rho], \[Rho]splice},
+	Q= Chop[N[SumPovms[protocol["protocol"], outcomesTetra]]];
+	Qsplice = SplitAndSplice[Q];
+	productStateTruths = {NearTo[Q, Qsplice]};
+
+	Do[
+	\[Rho] = Chop[N[Matrixify[Normalize[vect]]]];
+	\[Rho]splice = Chop[SplitAndSplice[\[Rho]]];
+	AppendTo[productStateTruths, NearTo[\[Rho], \[Rho]splice, -9]], {vect, protocol["eigenVectors"]}
+];
+
+	productStateTruths
+]
